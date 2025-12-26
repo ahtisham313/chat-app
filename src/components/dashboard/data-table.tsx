@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useMemo } from "react"
+import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import {
   Table,
   TableBody,
@@ -13,13 +14,16 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Pagination } from "./pagination"
-import { CallLog } from "../../data/callLogs"
-import { UserStat } from "../../data/userStats"
-import { Message } from "../../data/messages"
-import { Eye, Phone, Video, Clock } from "lucide-react"
+import type {
+  DashboardMessage,
+  DashboardCallLog,
+  DashboardUserStat,
+} from "@/src/types/dashboard"
+import { Eye, Phone, Video } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 
-type TableData = CallLog | UserStat | Message
+type TableData = DashboardCallLog | DashboardUserStat | DashboardMessage
 
 interface DataTableProps<T extends TableData> {
   data: T[]
@@ -32,15 +36,37 @@ export function DataTable<T extends TableData>({
   type,
   itemsPerPage = 10,
 }: DataTableProps<T>) {
-  const [currentPage, setCurrentPage] = useState(1)
-
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const totalPages = Math.ceil(data.length / itemsPerPage)
+  
+  // Get page from URL, but only if it matches the current tab type
+  // This prevents cross-tab page number issues
+  const urlTab = searchParams.get("tab")
+  const pageParam = urlTab === type ? searchParams.get("page") : null
+  const rawPage = parseInt(pageParam || "1", 10)
+  const currentPage = Math.max(1, Math.min(rawPage, totalPages || 1))
 
   const paginatedData = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
     return data.slice(startIndex, endIndex)
   }, [data, currentPage, itemsPerPage])
+
+  const handlePageChange = (page: number) => {
+    const params = new URLSearchParams(searchParams.toString())
+    // Ensure tab is set in URL
+    if (!params.get("tab")) {
+      params.set("tab", type)
+    }
+    if (page === 1) {
+      params.delete("page")
+    } else {
+      params.set("page", page.toString())
+    }
+    router.push(`${pathname}?${params.toString()}`)
+  }
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat("en-US", {
@@ -80,29 +106,43 @@ export function DataTable<T extends TableData>({
     return <Badge variant={config.variant}>{config.label}</Badge>
   }
 
-  const renderCallRow = (call: CallLog) => (
+  const getAvatarUrl = (id: string) => {
+    const numericId = id.replace(/[^0-9]/g, '') || '1'
+    return `https://i.pravatar.cc/150?img=${numericId}`
+  }
+
+  const renderCallRow = (call: DashboardCallLog) => (
     <TableRow key={call.id} className="hover:bg-muted/50 transition-colors">
-      <TableCell className="font-medium">
+      <TableCell className="font-medium whitespace-nowrap">
         <div className="flex items-center gap-2">
+          <Image
+            src={getAvatarUrl(call.callerId)}
+            alt={call.callerName}
+            width={24}
+            height={24}
+            className="rounded-full shrink-0"
+          />
           {call.type === "video" ? (
-            <Video className="h-4 w-4 text-muted-foreground" />
+            <Video className="h-4 w-4 text-muted-foreground shrink-0" />
           ) : (
-            <Phone className="h-4 w-4 text-muted-foreground" />
+            <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
           )}
-          {call.callerName}
+          <span className="truncate max-w-[120px] sm:max-w-none">{call.callerName}</span>
         </div>
       </TableCell>
-      <TableCell>{call.receiverName}</TableCell>
-      <TableCell>{getStatusBadge(call.status)}</TableCell>
-      <TableCell>
+      <TableCell className="whitespace-nowrap">
+        <span className="truncate max-w-[120px] sm:max-w-none block">{call.receiverName}</span>
+      </TableCell>
+      <TableCell className="whitespace-nowrap">{getStatusBadge(call.status)}</TableCell>
+      <TableCell className="whitespace-nowrap">
         {call.status === "completed" && call.duration > 0
           ? formatDuration(call.duration)
           : call.status === "ongoing"
           ? "In progress"
           : "-"}
       </TableCell>
-      <TableCell>{formatDate(call.startTime)}</TableCell>
-      <TableCell>
+      <TableCell className="whitespace-nowrap text-xs sm:text-sm">{formatDate(call.startTime)}</TableCell>
+      <TableCell className="whitespace-nowrap">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -121,21 +161,36 @@ export function DataTable<T extends TableData>({
     </TableRow>
   )
 
-  const renderUserRow = (user: UserStat) => (
+  const renderUserRow = (user: DashboardUserStat) => (
     <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
-      <TableCell className="font-medium">{user.userName}</TableCell>
-      <TableCell>{user.email}</TableCell>
-      <TableCell>{getStatusBadge(user.status)}</TableCell>
-      <TableCell>{formatDate(user.lastSeen)}</TableCell>
-      <TableCell>{user.totalMessages}</TableCell>
-      <TableCell>{user.totalCalls}</TableCell>
-      <TableCell>{formatDuration(user.totalCallDuration)}</TableCell>
-      <TableCell>
+      <TableCell className="font-medium whitespace-nowrap">
+        <div className="flex items-center gap-2">
+          {user.avatar && (
+            <Image
+              src={user.avatar}
+              alt={user.userName}
+              width={32}
+              height={32}
+              className="rounded-full shrink-0"
+            />
+          )}
+          <span className="truncate max-w-[120px] sm:max-w-none">{user.userName}</span>
+        </div>
+      </TableCell>
+      <TableCell className="whitespace-nowrap">
+        <span className="truncate max-w-[150px] sm:max-w-none block">{user.email}</span>
+      </TableCell>
+      <TableCell className="whitespace-nowrap">{getStatusBadge(user.status)}</TableCell>
+      <TableCell className="whitespace-nowrap text-xs sm:text-sm">{formatDate(user.lastSeen)}</TableCell>
+      <TableCell className="whitespace-nowrap">{user.totalMessages}</TableCell>
+      <TableCell className="whitespace-nowrap">{user.totalCalls}</TableCell>
+      <TableCell className="whitespace-nowrap">{formatDuration(user.totalCallDuration)}</TableCell>
+      <TableCell className="whitespace-nowrap">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="sm" asChild>
-                <Link href={`/user/${user.id}`}>
+                <Link href={`/user/${user.userId}`}>
                   <Eye className="h-4 w-4" />
                 </Link>
               </Button>
@@ -149,15 +204,30 @@ export function DataTable<T extends TableData>({
     </TableRow>
   )
 
-  const renderMessageRow = (message: Message) => (
+  const renderMessageRow = (message: DashboardMessage) => (
     <TableRow key={message.id} className="hover:bg-muted/50 transition-colors">
-      <TableCell className="font-medium">{message.senderName}</TableCell>
-      <TableCell>{message.content.substring(0, 50)}{message.content.length > 50 ? "..." : ""}</TableCell>
+      <TableCell className="font-medium whitespace-nowrap">
+        <div className="flex items-center gap-2">
+          <Image
+            src={getAvatarUrl(message.senderId)}
+            alt={message.senderName}
+            width={24}
+            height={24}
+            className="rounded-full shrink-0"
+          />
+          <span className="truncate max-w-[120px] sm:max-w-none">{message.senderName}</span>
+        </div>
+      </TableCell>
       <TableCell>
+        <span className="truncate max-w-[200px] sm:max-w-[300px] block">
+          {message.content.substring(0, 50)}{message.content.length > 50 ? "..." : ""}
+        </span>
+      </TableCell>
+      <TableCell className="whitespace-nowrap">
         <Badge variant="outline">{message.type}</Badge>
       </TableCell>
-      <TableCell>{formatDate(message.timestamp)}</TableCell>
-      <TableCell>
+      <TableCell className="whitespace-nowrap text-xs sm:text-sm">{formatDate(message.timestamp)}</TableCell>
+      <TableCell className="whitespace-nowrap">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -191,42 +261,46 @@ export function DataTable<T extends TableData>({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {getTableHeaders().map((header) => (
-                <TableHead key={header}>{header}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paginatedData.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={getTableHeaders().length} className="text-center py-8 text-muted-foreground">
-                  No data available
-                </TableCell>
-              </TableRow>
-            ) : (
-              paginatedData.map((item) => {
-                if (type === "calls") {
-                  return renderCallRow(item as CallLog)
-                } else if (type === "users") {
-                  return renderUserRow(item as UserStat)
-                } else {
-                  return renderMessageRow(item as Message)
-                }
-              })
-            )}
-          </TableBody>
-        </Table>
+      <div className="rounded-md border overflow-hidden">
+        <div className="overflow-x-auto -mx-4 sm:mx-0">
+          <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {getTableHeaders().map((header) => (
+                    <TableHead key={header} className="whitespace-nowrap">{header}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedData.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={getTableHeaders().length} className="text-center py-8 text-muted-foreground">
+                      No data available
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedData.map((item) => {
+                    if (type === "calls") {
+                      return renderCallRow(item as DashboardCallLog)
+                    } else if (type === "users") {
+                      return renderUserRow(item as DashboardUserStat)
+                    } else {
+                      return renderMessageRow(item as DashboardMessage)
+                    }
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       </div>
 
       {totalPages > 1 && (
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
-          onPageChange={setCurrentPage}
+          onPageChange={handlePageChange}
         />
       )}
     </div>

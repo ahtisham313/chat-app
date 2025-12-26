@@ -1,114 +1,139 @@
 "use client"
 
-import { createContext, useContext, ReactNode, useMemo } from "react"
-import { useSearchParams } from "next/navigation"
+import { createContext, useContext, ReactNode, useEffect, useState } from "react"
+import { 
+  User as FirebaseUser,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  updateProfile
+} from "firebase/auth"
+import { auth } from "@/src/lib/firebase/config"
+import { createOrUpdateUserProfile } from "@/src/lib/users-service"
 
 export interface User {
-  id: string
-  name: string
-  email?: string
+  uid: string
+  displayName: string | null
+  email: string | null
+  photoURL: string | null
 }
 
 interface AuthContextType {
-  currentUser: User | null
-  isAuthenticated: boolean
+  user: User | null
+  loading: boolean
+  error: string | null
+  signInWithEmail: (email: string, password: string) => Promise<void>
+  signUpWithEmail: (email: string, password: string, displayName: string) => Promise<void>
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
-// Default users for simulation - consistent naming
-const defaultUsers: Record<string, User> = {
-  user_1: {
-    id: "user_1",
-    name: "User 1",
-    email: "user1@example.com",
-  },
-  user_2: {
-    id: "user_2",
-    name: "User 2",
-    email: "user2@example.com",
-  },
-  user_3: {
-    id: "user_3",
-    name: "User 3",
-    email: "user3@example.com",
-  },
-  user_4: {
-    id: "user_4",
-    name: "User 4",
-    email: "user4@example.com",
-  },
-  user_5: {
-    id: "user_5",
-    name: "User 5",
-    email: "user5@example.com",
-  },
-  // Support shorter format too
-  user1: {
-    id: "user_1",
-    name: "User 1",
-    email: "user1@example.com",
-  },
-  user2: {
-    id: "user_2",
-    name: "User 2",
-    email: "user2@example.com",
-  },
-}
-
-// Fallback default user
-const defaultUser: User = {
-  id: "user_1",
-  name: "User 1",
-  email: "user1@example.com",
-}
 
 interface AuthProviderProps {
   children: ReactNode
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const searchParams = useSearchParams()
-  const userParam = searchParams.get("user")
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const currentUser = useMemo(() => {
-    // Normalize user param (support both user1 and user_1 formats)
-    let normalizedParam = userParam
-    if (normalizedParam && !normalizedParam.startsWith("user_")) {
-      // Convert user1 -> user_1, user2 -> user_2
-      const match = normalizedParam.match(/^user(\d+)$/i)
-      if (match) {
-        normalizedParam = `user_${match[1]}`
-      } else {
-        normalizedParam = `user_${normalizedParam}`
+  useEffect(() => {
+    // Only run on client side
+    if (typeof window === "undefined") return;
+    
+    // Subscribe to auth state changes
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (firebaseUser: FirebaseUser | null) => {
+        if (firebaseUser) {
+          // Create or update user profile in Firebase Database
+          try {
+            await createOrUpdateUserProfile(
+              firebaseUser.uid,
+              firebaseUser.displayName,
+              firebaseUser.email,
+              firebaseUser.photoURL
+            )
+          } catch (error) {
+            console.error("Error creating/updating user profile:", error)
+          }
+          
+          setUser({
+            uid: firebaseUser.uid,
+            displayName: firebaseUser.displayName,
+            email: firebaseUser.email,
+            photoURL: firebaseUser.photoURL,
+          })
+        } else {
+          setUser(null)
+        }
+        setLoading(false)
+        setError(null)
+      },
+      (error) => {
+        console.error("Auth state change error:", error)
+        setError(error.message)
+        setLoading(false)
       }
-    }
+    )
 
-    if (normalizedParam) {
-      // Check if user exists in defaultUsers
-      if (defaultUsers[normalizedParam]) {
-        return defaultUsers[normalizedParam]
-      }
-      // Also check original param format
-      if (defaultUsers[userParam || ""]) {
-        return defaultUsers[userParam || ""]
-      }
-      // Create user from param with consistent naming
-      const userNumber = normalizedParam.replace("user_", "")
-      return {
-        id: normalizedParam,
-        name: `User ${userNumber}`,
-        email: `${normalizedParam}@example.com`,
-      }
+    // Cleanup subscription on unmount
+    return () => unsubscribe()
+  }, [])
+
+  const signInWithEmail = async (email: string, password: string) => {
+    try {
+      setError(null)
+      if (typeof window === "undefined") return;
+      await signInWithEmailAndPassword(auth, email, password)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to sign in"
+      setError(errorMessage)
+      throw err
     }
-    return defaultUser
-  }, [userParam])
+  }
+
+  const signUpWithEmail = async (email: string, password: string, displayName: string) => {
+    try {
+      setError(null)
+      if (typeof window === "undefined") return;
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      // Update profile with display name
+      if (userCredential.user) {
+        await updateProfile(userCredential.user, {
+          displayName: displayName,
+        })
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to sign up"
+      setError(errorMessage)
+      throw err
+    }
+  }
+
+  const logout = async () => {
+    try {
+      setError(null)
+      if (typeof window === "undefined") return;
+      await signOut(auth)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to logout"
+      setError(errorMessage)
+      throw err
+    }
+  }
 
   return (
     <AuthContext.Provider
       value={{
-        currentUser,
-        isAuthenticated: true,
+        user,
+        loading,
+        error,
+        signInWithEmail,
+        signUpWithEmail,
+        logout,
       }}
     >
       {children}

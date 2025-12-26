@@ -1,5 +1,5 @@
 import { ref, push, set, query, limitToLast, onValue, off, serverTimestamp, DataSnapshot } from "firebase/database";
-import { db } from "./firebase/config";
+import { getDb } from "./firebase/config";
 
 export interface Message {
   id: string;
@@ -32,6 +32,10 @@ export function getRoomId(userId1: string, userId2: string): string {
  */
 export async function sendMessage(message: MessageInput): Promise<void> {
   try {
+    const db = getDb();
+    if (!db) {
+      throw new Error("Database not initialized");
+    }
     const messagesRef = ref(db, `messages/${message.roomId}`);
     const newMessageRef = push(messagesRef);
 
@@ -58,6 +62,11 @@ export function listenMessages(
   roomId: string,
   callback: (messages: Message[]) => void
 ): () => void {
+  const db = getDb();
+  if (!db) {
+    callback([]);
+    return () => {};
+  }
   const messagesRef = ref(db, `messages/${roomId}`);
   const messagesQuery = query(messagesRef, limitToLast(50));
 
@@ -107,6 +116,11 @@ export function getLastMessage(
   roomId: string,
   callback: (message: Message | null) => void
 ): () => void {
+  const db = getDb();
+  if (!db) {
+    callback(null);
+    return () => {};
+  }
   const messagesRef = ref(db, `messages/${roomId}`);
   const messagesQuery = query(messagesRef, limitToLast(1));
 

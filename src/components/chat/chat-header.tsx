@@ -10,10 +10,30 @@ interface ChatHeaderProps {
   contactName: string
   isOnline?: boolean
   lastSeen?: number
-  contactId?: string
 }
 
-export function ChatHeader({ contactName, isOnline = false, lastSeen, contactId }: ChatHeaderProps) {
+function formatLastSeen(timestamp: number): string {
+  if (!timestamp) return "never"
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const minutes = Math.floor(diff / (1000 * 60))
+  const hours = Math.floor(diff / (1000 * 60 * 60))
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+
+  if (minutes < 1) return "just now"
+  if (minutes < 60) return `${minutes} minutes ago`
+  if (hours < 24) return `${hours} hours ago`
+  if (days < 7) return `${days} days ago`
+  
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+  }).format(date)
+}
+
+export function ChatHeader({ contactName, isOnline = false, lastSeen }: ChatHeaderProps) {
   const { startCall } = useCall()
 
   const handleStartAudioCall = () => {
@@ -26,26 +46,6 @@ export function ChatHeader({ contactName, isOnline = false, lastSeen, contactId 
     startCall('video', {
       name: contactName,
     })
-  }
-  const formatLastSeen = (timestamp: number) => {
-    if (!timestamp) return "never"
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const minutes = Math.floor(diff / (1000 * 60))
-    const hours = Math.floor(diff / (1000 * 60 * 60))
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-    if (minutes < 1) return "just now"
-    if (minutes < 60) return `${minutes} minutes ago`
-    if (hours < 24) return `${hours} hours ago`
-    if (days < 7) return `${days} days ago`
-    
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
-    }).format(date)
   }
 
   return (

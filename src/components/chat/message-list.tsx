@@ -2,9 +2,18 @@
 
 import { useEffect, useRef } from "react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { Message } from "@/src/lib/chat-service"
+
+function formatTime(timestamp: number): string {
+  if (!timestamp) return ""
+  const date = new Date(timestamp)
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date)
+}
 
 interface MessageListProps {
   messages: Message[]
@@ -22,18 +31,8 @@ export function MessageList({ messages, currentUserId }: MessageListProps) {
     scrollToBottom()
   }, [messages])
 
-  const formatTime = (timestamp: number) => {
-    if (!timestamp) return ""
-    const date = new Date(timestamp)
-    return new Intl.DateTimeFormat("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(date)
-  }
-
   return (
-    <ScrollArea className="flex-1 p-4">
+    <div className="h-full overflow-y-auto p-4">
       <div className="space-y-4">
         {messages.map((message) => {
           const isCurrentUser = message.senderId === currentUserId
@@ -46,7 +45,7 @@ export function MessageList({ messages, currentUserId }: MessageListProps) {
               }`}
             >
               {!isCurrentUser && (
-                <Avatar className="h-8 w-8 flex-shrink-0">
+                <Avatar className="h-8 w-8 shrink-0">
                   <AvatarFallback className="text-xs">
                     {message.senderName.charAt(0).toUpperCase()}
                   </AvatarFallback>
@@ -89,7 +88,7 @@ export function MessageList({ messages, currentUserId }: MessageListProps) {
               </div>
 
               {isCurrentUser && (
-                <Avatar className="h-8 w-8 flex-shrink-0">
+                <Avatar className="h-8 w-8 shrink-0">
                   <AvatarFallback className="text-xs">
                     {message.senderName.charAt(0).toUpperCase()}
                   </AvatarFallback>
@@ -100,6 +99,6 @@ export function MessageList({ messages, currentUserId }: MessageListProps) {
         })}
         <div ref={messagesEndRef} />
       </div>
-    </ScrollArea>
+    </div>
   )
 }

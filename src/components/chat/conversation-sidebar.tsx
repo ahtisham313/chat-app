@@ -1,12 +1,34 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { useState, useEffect, useMemo } from "react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/src/lib/utils"
 import { Contact } from "@/src/data/contacts"
 import { getRoomId, getLastMessage, type Message } from "@/src/lib/chat-service"
 import { useAuth } from "@/src/context/AuthContext"
+
+function formatTime(timestamp: number): string {
+  if (!timestamp) return ""
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+
+  if (days === 0) {
+    return new Intl.DateTimeFormat("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date)
+  } else if (days < 7) {
+    return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date)
+  } else {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+    }).format(date)
+  }
+}
 
 interface ConversationSidebarProps {
   contacts: Contact[]
@@ -60,42 +82,21 @@ export function ConversationSidebar({
     }
   }, [contacts, currentUserId])
 
-  const formatTime = (timestamp: number) => {
-    if (!timestamp) return ""
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-    if (days === 0) {
-      return new Intl.DateTimeFormat("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }).format(date)
-    } else if (days < 7) {
-      return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date)
-    } else {
-      return new Intl.DateTimeFormat("en-US", {
-        month: "short",
-        day: "numeric",
-      }).format(date)
-    }
-  }
-
-  const sortedConversations = [...conversations].sort((a, b) => {
-    const timeA = a.lastMessage?.timestamp || 0
-    const timeB = b.lastMessage?.timestamp || 0
-    return timeB - timeA
-  })
+  const sortedConversations = useMemo(() => {
+    return [...conversations].sort((a, b) => {
+      const timeA = a.lastMessage?.timestamp || 0
+      const timeB = b.lastMessage?.timestamp || 0
+      return timeB - timeA
+    })
+  }, [conversations])
 
   return (
-    <div className="flex h-full flex-col border-r bg-background">
-      <div className="border-b p-4">
+    <div className="flex h-full flex-col w-full bg-background overflow-hidden">
+      <div className="border-b p-4 shrink-0">
         <h2 className="text-lg font-semibold">Chats</h2>
       </div>
 
-      <ScrollArea className="flex-1">
+      <div className="flex-1 overflow-y-auto min-h-0">
         <div className="p-2">
           {sortedConversations.map((conversation) => {
             const isActive = conversation.roomId === currentRoomId
@@ -110,7 +111,10 @@ export function ConversationSidebar({
                   isActive && "bg-muted"
                 )}
               >
-                <Avatar className="h-12 w-12 flex-shrink-0">
+                <Avatar className="h-12 w-12 shrink-0">
+                  {conversation.contact.avatar ? (
+                    <AvatarImage src={conversation.contact.avatar} alt={conversation.contact.name} />
+                  ) : null}
                   <AvatarFallback>
                     {conversation.contact.name.charAt(0).toUpperCase()}
                   </AvatarFallback>
@@ -122,7 +126,7 @@ export function ConversationSidebar({
                       {conversation.contact.name}
                     </span>
                     {lastMessage && (
-                      <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
+                      <span className="text-xs text-muted-foreground ml-2 shrink-0">
                         {formatTime(lastMessage.timestamp)}
                       </span>
                     )}
@@ -140,7 +144,7 @@ export function ConversationSidebar({
             )
           })}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   )
 }
