@@ -23,6 +23,7 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   error: string | null
+  setError: (error: string | null) => void
   signInWithEmail: (email: string, password: string) => Promise<void>
   signUpWithEmail: (email: string, password: string, displayName: string) => Promise<void>
   logout: () => Promise<void>
@@ -112,22 +113,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       await signInWithEmailAndPassword(auth, email, password)
     } catch (err: unknown) {
-      let errorMessage = "Failed to sign in"
+      let errorMessage = "Failed to sign in. Please try again."
       const firebaseError = err as { code?: string; message?: string }
       
-      if (firebaseError?.code === "auth/network-request-failed") {
-        errorMessage = "Network error: Please check your internet connection and Firebase configuration."
-      } else if (firebaseError?.code === "auth/invalid-email") {
-        errorMessage = "Invalid email address."
-      } else if (firebaseError?.code === "auth/user-not-found") {
-        errorMessage = "No account found with this email."
-      } else if (firebaseError?.code === "auth/wrong-password") {
-        errorMessage = "Incorrect password."
-      } else if (firebaseError?.code === "auth/too-many-requests") {
-        errorMessage = "Too many failed attempts. Please try again later."
-      } else if (firebaseError?.message) {
-        errorMessage = firebaseError.message
-      } else if (err instanceof Error) {
+      // Map all Firebase auth error codes to user-friendly messages
+      const errorCodeMap: Record<string, string> = {
+        "auth/network-request-failed": "Network error. Please check your internet connection.",
+        "auth/invalid-email": "Invalid email address. Please enter a valid email.",
+        "auth/user-not-found": "No account found with this email address.",
+        "auth/wrong-password": "Incorrect password. Please try again.",
+        "auth/invalid-credential": "Invalid email or password. Please check your credentials.",
+        "auth/too-many-requests": "Too many failed attempts. Please try again later.",
+        "auth/user-disabled": "This account has been disabled. Please contact support.",
+        "auth/operation-not-allowed": "Sign in is currently disabled. Please contact support.",
+        "auth/invalid-verification-code": "Invalid verification code.",
+        "auth/invalid-verification-id": "Invalid verification ID.",
+        "auth/missing-email": "Email is required.",
+        "auth/missing-password": "Password is required.",
+      }
+      
+      if (firebaseError?.code && errorCodeMap[firebaseError.code]) {
+        errorMessage = errorCodeMap[firebaseError.code]
+      } else if (err instanceof Error && !err.message.includes("Firebase")) {
+        // Only use error message if it's not a Firebase technical message
         errorMessage = err.message
       }
       
@@ -157,20 +165,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
         })
       }
     } catch (err: unknown) {
-      let errorMessage = "Failed to sign up"
+      let errorMessage = "Failed to sign up. Please try again."
       const firebaseError = err as { code?: string; message?: string }
       
-      if (firebaseError?.code === "auth/network-request-failed") {
-        errorMessage = "Network error: Please check your internet connection and Firebase configuration."
-      } else if (firebaseError?.code === "auth/email-already-in-use") {
-        errorMessage = "An account with this email already exists."
-      } else if (firebaseError?.code === "auth/invalid-email") {
-        errorMessage = "Invalid email address."
-      } else if (firebaseError?.code === "auth/weak-password") {
-        errorMessage = "Password should be at least 6 characters."
-      } else if (firebaseError?.message) {
-        errorMessage = firebaseError.message
-      } else if (err instanceof Error) {
+      // Map all Firebase auth error codes to user-friendly messages
+      const errorCodeMap: Record<string, string> = {
+        "auth/network-request-failed": "Network error. Please check your internet connection.",
+        "auth/email-already-in-use": "An account with this email already exists. Please sign in instead.",
+        "auth/invalid-email": "Invalid email address. Please enter a valid email.",
+        "auth/weak-password": "Password is too weak. Please use at least 6 characters.",
+        "auth/missing-email": "Email is required.",
+        "auth/missing-password": "Password is required.",
+        "auth/operation-not-allowed": "Sign up is currently disabled. Please contact support.",
+        "auth/invalid-verification-code": "Invalid verification code.",
+        "auth/invalid-verification-id": "Invalid verification ID.",
+      }
+      
+      if (firebaseError?.code && errorCodeMap[firebaseError.code]) {
+        errorMessage = errorCodeMap[firebaseError.code]
+      } else if (err instanceof Error && !err.message.includes("Firebase")) {
+        // Only use error message if it's not a Firebase technical message
         errorMessage = err.message
       }
       
@@ -198,6 +212,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         user,
         loading,
         error,
+        setError,
         signInWithEmail,
         signUpWithEmail,
         logout,

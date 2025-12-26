@@ -16,12 +16,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [displayName, setDisplayName] = useState("")
   const [loading, setLoading] = useState(false)
-  const { signInWithEmail, signUpWithEmail, error } = useAuth()
+  const { signInWithEmail, signUpWithEmail, error, setError } = useAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError(null) // Clear any previous errors
 
     try {
       if (isSignUp) {
@@ -32,11 +33,16 @@ export default function LoginPage() {
       // Redirect to dashboard after successful login
       router.push("/dashboard")
     } catch (err) {
-      // Error is handled by AuthContext
-      console.error("Auth error:", err)
+      // Error is handled by AuthContext - it's already set in the context
+      // No need to do anything here, error will be displayed automatically
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleToggleMode = () => {
+    setError(null) // Clear error when switching between sign in/sign up
+    setIsSignUp(!isSignUp)
   }
 
 
@@ -84,7 +90,10 @@ export default function LoginPage() {
                 type="email"
                 placeholder="name@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  if (error) setError(null) // Clear error when user starts typing
+                }}
                 required
                 disabled={loading}
               />
@@ -97,7 +106,10 @@ export default function LoginPage() {
                 type="password"
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  if (error) setError(null) // Clear error when user starts typing
+                }}
                 required
                 disabled={loading}
                 minLength={6}
@@ -112,7 +124,7 @@ export default function LoginPage() {
           <div className="text-center text-sm">
             <button
               type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={handleToggleMode}
               className="text-primary hover:underline"
               disabled={loading}
             >
