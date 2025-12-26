@@ -43,6 +43,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Only run on client side
     if (typeof window === "undefined") return;
     
+    // Check if auth is available
+    if (!auth) {
+      console.error("Firebase Auth is not initialized")
+      setError("Firebase Auth is not initialized. Please check your Firebase configuration.")
+      setLoading(false)
+      return
+    }
+    
     // Subscribe to auth state changes
     const unsubscribe = onAuthStateChanged(
       auth,
@@ -58,6 +66,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             )
           } catch (error) {
             console.error("Error creating/updating user profile:", error)
+            // Don't block auth flow if profile update fails
           }
           
           setUser({
@@ -72,9 +81,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setLoading(false)
         setError(null)
       },
-      (error) => {
+      (error: unknown) => {
         console.error("Auth state change error:", error)
-        setError(error.message)
+        // Only set error for network issues, not for normal unauthenticated state
+        const firebaseError = error as { code?: string; message?: string }
+        if (firebaseError?.code === "auth/network-request-failed") {
+          setError("Network error: Please check your internet connection and Firebase configuration.")
+        } else {
+          setError(null) // Clear error for other auth state changes
+        }
         setLoading(false)
       }
     )
@@ -86,10 +101,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signInWithEmail = async (email: string, password: string) => {
     try {
       setError(null)
-      if (typeof window === "undefined") return;
+      if (typeof window === "undefined") {
+        throw new Error("Authentication can only be performed on the client side")
+      }
+      
+      // Ensure auth is properly initialized
+      if (!auth) {
+        throw new Error("Firebase Auth is not initialized. Please check your Firebase configuration.")
+      }
+      
       await signInWithEmailAndPassword(auth, email, password)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to sign in"
+    } catch (err: unknown) {
+      let errorMessage = "Failed to sign in"
+      const firebaseError = err as { code?: string; message?: string }
+      
+      if (firebaseError?.code === "auth/network-request-failed") {
+        errorMessage = "Network error: Please check your internet connection and Firebase configuration."
+      } else if (firebaseError?.code === "auth/invalid-email") {
+        errorMessage = "Invalid email address."
+      } else if (firebaseError?.code === "auth/user-not-found") {
+        errorMessage = "No account found with this email."
+      } else if (firebaseError?.code === "auth/wrong-password") {
+        errorMessage = "Incorrect password."
+      } else if (firebaseError?.code === "auth/too-many-requests") {
+        errorMessage = "Too many failed attempts. Please try again later."
+      } else if (firebaseError?.message) {
+        errorMessage = firebaseError.message
+      } else if (err instanceof Error) {
+        errorMessage = err.message
+      }
+      
+      console.error("Sign in error:", err)
       setError(errorMessage)
       throw err
     }
@@ -98,7 +140,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signUpWithEmail = async (email: string, password: string, displayName: string) => {
     try {
       setError(null)
-      if (typeof window === "undefined") return;
+      if (typeof window === "undefined") {
+        throw new Error("Authentication can only be performed on the client side")
+      }
+      
+      // Ensure auth is properly initialized
+      if (!auth) {
+        throw new Error("Firebase Auth is not initialized. Please check your Firebase configuration.")
+      }
+      
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       // Update profile with display name
       if (userCredential.user) {
@@ -106,8 +156,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
           displayName: displayName,
         })
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to sign up"
+    } catch (err: unknown) {
+      let errorMessage = "Failed to sign up"
+      const firebaseError = err as { code?: string; message?: string }
+      
+      if (firebaseError?.code === "auth/network-request-failed") {
+        errorMessage = "Network error: Please check your internet connection and Firebase configuration."
+      } else if (firebaseError?.code === "auth/email-already-in-use") {
+        errorMessage = "An account with this email already exists."
+      } else if (firebaseError?.code === "auth/invalid-email") {
+        errorMessage = "Invalid email address."
+      } else if (firebaseError?.code === "auth/weak-password") {
+        errorMessage = "Password should be at least 6 characters."
+      } else if (firebaseError?.message) {
+        errorMessage = firebaseError.message
+      } else if (err instanceof Error) {
+        errorMessage = err.message
+      }
+      
+      console.error("Sign up error:", err)
       setError(errorMessage)
       throw err
     }
