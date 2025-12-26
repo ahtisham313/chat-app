@@ -1,10 +1,11 @@
-# Chat Application
+# Chat Application : https://chat-app-xi-gray.vercel.app/
 
 A modern, full-featured chat application built with Next.js, TypeScript, and Firebase. This application includes real-time messaging, audio/video calling simulation, interactive dashboard, and user authentication.
 
 ## Features
 
-### 1. Dashboard Page
+### 1. Dashboard Page 
+(The dashboard data is fetched from the JSONPlaceholder API, which may not work reliably in Pakistan. If the data does not load, please use a VPN to fetch the dashboard data properly.)
 - **Interactive Data Display**: View recent messages, call logs, and user statistics in card and table layouts
 - **Filtering**: Filter records by categories (active users, call status, user status)
 - **Pagination**: Handle large datasets with 10 items per page
@@ -70,7 +71,7 @@ A modern, full-featured chat application built with Next.js, TypeScript, and Fir
 - **Framework**: Next.js 16.1.1 (App Router)
 - **Language**: TypeScript 5
 - **Styling**: Tailwind CSS 4
-- **UI Components**: Radix UI + shadcn/ui
+- **UI Components**:  shadcn/ui
 - **Authentication**: Firebase Authentication
 - **Database**: Firebase Realtime Database
 - **API**: JSONPlaceholder (for dashboard data)
