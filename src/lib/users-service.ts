@@ -1,6 +1,37 @@
-import { ref, onValue, off, set, DataSnapshot } from "firebase/database"
-import { getDb } from "./firebase/config"
+import { ref, onValue, set, DataSnapshot } from "firebase/database"
+import { auth, getDb } from "./firebase/config"
 import type { Contact } from "@/src/data/contacts"
+
+async function ensureAuthReady(): Promise<void> {
+  if (auth?.currentUser) {
+    await auth.currentUser.getIdToken()
+  }
+}
+
+function mapUsersFromSnapshot(
+  usersData: Record<string, unknown>,
+  currentUserId: string
+): Contact[] {
+  return Object.keys(usersData)
+    .map((key) => {
+      const user = usersData[key]
+      if (!user || typeof user !== "object") return null
+
+      const profile = user as {
+        displayName?: string
+        email?: string
+        photoURL?: string
+      }
+
+      return {
+        id: key,
+        name: profile.displayName || profile.email || "Unknown User",
+        email: profile.email || undefined,
+        avatar: profile.photoURL || undefined,
+      }
+    })
+    .filter((user): user is Contact => user !== null && user.id !== currentUserId)
+}
 
 /**
  * Listen to all users from Firebase
@@ -10,44 +41,40 @@ export function listenUsers(
   currentUserId: string,
   callback: (users: Contact[]) => void
 ): () => void {
-  const db = getDb()
-  if (!db) {
-    callback([])
-    return () => {}
-  }
+  let unsubscribe = () => {}
+  let cancelled = false
 
-  const usersRef = ref(db, "users")
+  void (async () => {
+    await ensureAuthReady()
+    if (cancelled) return
 
-  const unsubscribe = onValue(
-    usersRef,
-    (snapshot: DataSnapshot) => {
-      if (snapshot.exists()) {
-        const usersData = snapshot.val()
-        const users: Contact[] = Object.keys(usersData)
-          .map((key) => {
-            const user = usersData[key]
-            return {
-              id: key,
-              name: user.displayName || user.email || "Unknown User",
-              email: user.email || undefined,
-              avatar: user.photoURL || undefined,
-            }
-          })
-          .filter((user) => user.id !== currentUserId) // Exclude current user
+    const db = getDb()
+    if (!db) {
+      callback([])
+      return
+    }
 
-        callback(users)
-      } else {
+    const usersRef = ref(db, "users")
+
+    unsubscribe = onValue(
+      usersRef,
+      (snapshot: DataSnapshot) => {
+        if (snapshot.exists()) {
+          callback(mapUsersFromSnapshot(snapshot.val(), currentUserId))
+        } else {
+          callback([])
+        }
+      },
+      (error) => {
+        console.error("Error listening to users:", error)
         callback([])
       }
-    },
-    (error) => {
-      console.error("Error listening to users:", error)
-      callback([])
-    }
-  )
+    )
+  })()
 
   return () => {
-    off(usersRef)
+    cancelled = true
+    unsubscribe()
   }
 }
 
@@ -60,6 +87,8 @@ export async function createOrUpdateUserProfile(
   email: string | null,
   photoURL: string | null
 ): Promise<void> {
+  await ensureAuthReady()
+
   const db = getDb()
   if (!db) {
     throw new Error("Database not initialized")
